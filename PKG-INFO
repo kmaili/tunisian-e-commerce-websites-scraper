@@ -1,0 +1,14 @@
+Metadata-Version: 1.0
+Name: ecommerce scraper
+Version: 1.0
+Summary: A bot which scrapes products details from tunisian e-commerce websites
+Home-page: UNKNOWN
+Author: Kmaili Aymen
+Author-email: kmailiaymen10@gmail.com
+License: MIT
+Description: UNKNOWN
+Platform: UNKNOWN
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Operating System :: OS Independent
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown

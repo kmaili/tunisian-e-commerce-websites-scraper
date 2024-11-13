@@ -1,0 +1,6 @@
+recursive-include e_commerce_scraper *.exe
+recursive-include e_commerce_scraper *.txt
+recursive-include e_commerce_scraper chromedriver
+include requirements
+include requirements/dev
+include requirements/prod
