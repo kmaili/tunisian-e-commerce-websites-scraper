@@ -1,16 +1,8 @@
-import json
 from time import sleep
-
-from selenium.webdriver.chrome.webdriver import WebDriver
 from selenium.webdriver.common.by import By
-from selenium.webdriver.support import expected_conditions as EC
-from typing import Dict, Any
 
-from typing import Dict, Any
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support import expected_conditions as EC
-
-from e_commerce_scraper.mixins.utils import wait_for_element_to_be_clickable
+from e_commerce_scraper.mixins.utils import wait_for_element_to_be_clickable, wait_for_element_to_be_present, \
+    wait_for_all_elements_to_be_present, wait_for_all_elements_to_be_visible
 
 
 class FromMytek:
@@ -23,21 +15,19 @@ class FromMytek:
         for level in levels[1:]:
             sub_categ_index = levels.index(level) + 1
             for item in range(1, level + 1):
-                menu = self._driver.find_element(
+                menu = wait_for_element_to_be_present(self._driver, (
                     By.XPATH,
                     f".//li[contains(@class, 'nav-{principal}-{sub_categ_index}-{item}')]//a",
-                ).get_attribute('href')
+                )).get_attribute('href')
                 menus.append(menu)
         return menus
 
     def getProductsFromMytek(self, levels, nb_product_for_each_subcategory):
         self._driver.get("https://"+self.mytek_website)
-        button = self._driver.find_element(
+        wait_for_element_to_be_clickable(self._driver, (
             By.XPATH, "//li[contains(@class, 'all-category-wrapper')]"
-        )
-        wait_for_element_to_be_clickable(self._driver, button).click()
-        parent_categ_elem = self._driver.find_element(By.XPATH, f"//ul[contains(@class, 'vertical-list')]/li[{levels[0]}]")
-        wait_for_element_to_be_clickable(self._driver, parent_categ_elem).click()
+        ))
+        wait_for_element_to_be_clickable(self._driver, (By.XPATH, f"//ul[contains(@class, 'vertical-list')]/li[{levels[0]}]"))
         menus = self._getSubCategoryMenus_mytek(levels)
         yield from self._getProductsCategory_mytek(menus, nb_product_for_each_subcategory)
 
@@ -48,14 +38,13 @@ class FromMytek:
 
             prods_links = []
             while True:
-                productsDivs = self._driver.find_elements(
+                productsDivs = wait_for_all_elements_to_be_present(self._driver, (
                     By.XPATH,
                     "//div[contains(@class,'products-list')]//li[contains(@class,'product-item')]",
-                )
+                ))
                 for elem in productsDivs:
                     prod_link = (
-                        elem
-                        .find_element(By.CLASS_NAME, "product-item-link")
+                        wait_for_element_to_be_present(elem, (By.CLASS_NAME, "product-item-link"))
                         .get_attribute("href")
                     )
                     prods_links.append(prod_link)
@@ -72,27 +61,27 @@ class FromMytek:
         self._driver.get(prod_link)
 
         ''' reference is used is data cleaning phase to removed duplicates  '''
-        reference = self._driver.find_element(By.XPATH, "//div[@itemprop = 'sku']").text
+        reference = wait_for_element_to_be_present(self._driver, (By.XPATH, "//div[@itemprop = 'sku']")).text
 
 
-        name = self._driver.find_element(By.XPATH, "//h1[@class='page-title']").text
+        name = wait_for_element_to_be_present(self._driver, (By.XPATH, "//h1[@class='page-title']")).text
         in_stock = (
             True
-            if self._driver.find_element(
-                By.XPATH, "//div[@itemprop='availability']"
+            if wait_for_element_to_be_present(self._driver, (
+                By.XPATH, "//div[@itemprop='availability']")
             ).text
             == "En Stock"
             else False
         )
-        price = self._driver.find_element(
+        price = wait_for_element_to_be_present(self._driver, (
             By.XPATH,
-            "//div[@class = 'product-info-price']//div[contains(@class, 'price-final_price')]",
+            "//div[@class = 'product-info-price']//div[contains(@class, 'price-final_price')]")
         ).text.replace(" DT", "")
-        description = self._driver.find_element(
-            By.XPATH, "//div[@itemprop='description']//p"
+        description = wait_for_element_to_be_present(self._driver, (
+            By.XPATH, "//div[@itemprop='description']//p")
         ).text
 
-        category = self._driver.find_element(By.XPATH, "//ul[@itemtype='https://schema.org/BreadcrumbList']/li[position()=last()-1]").text
+        category = wait_for_element_to_be_present(self._driver, (By.XPATH, "//ul[@itemtype='https://schema.org/BreadcrumbList']/li[position()=last()-1]")).text
 
 
         data = {
@@ -100,6 +89,7 @@ class FromMytek:
             "product_reference_in_website": reference,
             "product_name": name,
             "product_category": category,
+            "product_manufacturer": self._get_manufacturer_mytek(),
             "in_stock": in_stock,
             "product_price": price,
             "product_url": prod_link,
@@ -111,41 +101,53 @@ class FromMytek:
         return data
 
     def _get_availability_mytek(self):
-        disp_div = self._driver.find_element(
+        disp_div = wait_for_element_to_be_present(self._driver, (
             By.XPATH, "//table[@class = 'tab_retrait_mag']"
-        )
-        places_divs = disp_div.find_elements(By.TAG_NAME, "tr")
+        ))
+        places_divs = wait_for_all_elements_to_be_present(disp_div, (By.TAG_NAME, "tr"))
         availabilities = dict()
         for place_div in places_divs:
-            place_status = place_div.find_elements(By.TAG_NAME, "td")
+            place_status = wait_for_all_elements_to_be_present(place_div, (By.TAG_NAME, "td"))
             place = place_status[0]
             status = place_status[1]
 
             availabilities[place.text] = status.text
         return availabilities
     def _get_technical_sheet_mytek(self):
-        switch_btn = self._driver.find_element(By.XPATH, "//a[text()='FICHE TECHNIQUE']")
-        wait_for_element_to_be_clickable(self._driver, switch_btn).click()
+        wait_for_element_to_be_clickable(self._driver, (By.XPATH, "//a[text()='FICHE TECHNIQUE']"))
         sleep(2)
-        specs = self._driver.find_element(By.ID, "product-attribute-specs-table").find_elements(By.TAG_NAME, "tr")
+        table = wait_for_element_to_be_present(self._driver, (By.ID, "product-attribute-specs-table"))
+        self._driver.execute_script("arguments[0].scrollIntoView(true);", table)
+        specs = wait_for_all_elements_to_be_present(table, (By.TAG_NAME, "tr"))
         technical_data = dict()
         for spec in specs:
-            key = spec.find_element(By.TAG_NAME, "th").text
-            value = spec.find_element(By.TAG_NAME, "td").text
+            key = wait_for_element_to_be_present(spec, (By.TAG_NAME, "th")).text
+            value = wait_for_element_to_be_present(spec, (By.TAG_NAME, "td")).text
             technical_data[key] = value
         if len(technical_data.keys()) <= 1:
-            self.logger.error("technical sheet not collected [mytek]")
+            self.logger.error(f"collected technical sheet:{len(technical_data.keys())} [mytek]")
+
         return technical_data
 
     def _jump_to_next_page_mytek(self):
         try:
-            next_btn = self._driver.find_element(By.CLASS_NAME, "item pages-item-next".replace(" ", "."))
-            wait_for_element_to_be_clickable(self._driver, next_btn).click()
+            wait_for_element_to_be_clickable(self._driver, By.CLASS_NAME, "item pages-item-next".replace(" ", "."))
             return True
         except:
             self.logger.info("failed to jump to next page")
             return False
 
     def _get_product_images_mytek(self):
-        images_elems = self._driver.find_elements(By.XPATH, "//ol[@class='carousel-indicators list-inline']//img")
-        return [img.get_attribute('src') for img in images_elems]
+        try:
+            images_elems = wait_for_all_elements_to_be_present(self._driver, (By.XPATH, "//div[@class='carousel-inner']//img"))
+            return list(set([img.get_attribute('src') for img in images_elems]))
+        except:
+            return []
+
+
+    def _get_manufacturer_mytek(self):
+        try:
+            return wait_for_element_to_be_present(self._driver, (By.XPATH, "//div[@class = 'product-info-stock-sku']//img")).get_attribute('alt').replace("powered-by-","")
+        except:
+            self.logger.info("manufacturer not loaded [mytek]")
+            return ""

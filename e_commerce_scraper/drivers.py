@@ -9,8 +9,9 @@ from selenium.webdriver.remote.webdriver import WebDriver
 
 from .logging import LoggerFactory
 from .mixins.from_mytek import FromMytek
+from .mixins.from_spacenet import FromSpacenet
 from .mixins.from_tunisianet import FromTunisianet
-from .mixins.from_zoom import FromZoo
+from .mixins.from_zoom import FromZoom
 
 BASE_NAME = "mytek"
 
@@ -35,7 +36,7 @@ class Driver(ABC):
             print(f"An error occurred while closing the driver: {e}")
 
 
-class EcommerceScraper(Driver, FromMytek, FromTunisianet, FromZoo):
+class EcommerceScraper(Driver, FromMytek, FromTunisianet, FromZoom, FromSpacenet):
     def __init__(self, **kwargs) -> None:
         FromMytek.__init__(self, **kwargs)
         FromTunisianet.__init__(self, **kwargs)
@@ -57,7 +58,7 @@ class EcommerceScraper(Driver, FromMytek, FromTunisianet, FromZoo):
 
     def _parametiser(self) -> webdriver.ChromeOptions:
         options = webdriver.ChromeOptions()
-        options.add_experimental_option("excludeSwitches", ["enable-logging"])
+        '''options.add_experimental_option("excludeSwitches", ["enable-logging"])
         prefs = {
             "profile.default_content_setting_values.notifications": 2,
             "webrtc.ip_handling_policy": "disable_non_proxied_udp",
@@ -94,7 +95,7 @@ class EcommerceScraper(Driver, FromMytek, FromTunisianet, FromZoo):
         options.add_experimental_option("prefs", prefs)
 
         if self._config("headless"):
-            options.add_argument("headless")
+            options.add_argument("headless")'''
         return options
 
     def _create_chromedriver(self) -> ChromeService:
