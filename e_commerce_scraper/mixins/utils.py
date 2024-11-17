@@ -32,7 +32,7 @@ def wait_for_element_to_be_present(driver, locator, timeout=10):
     )
 
 
-def wait_for_all_elements_to_be_present(driver, locator, timeout=10):
+def wait_for_all_elements_to_be_present(driver, locator, timeout=3):
     """
     Wait for all elements to be present in the DOM.
 

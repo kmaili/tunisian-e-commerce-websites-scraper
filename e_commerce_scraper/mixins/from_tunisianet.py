@@ -19,25 +19,65 @@ class FromTunisianet:
 
     tunisianet_website = "tunisianet.com.tn"
 
-    def _getSubCategoryMenus_tunisianet(self, levels, parent_categ_elem):
-        each_sub_categ_items_count = [3, 11, 5, 2, 0, 0, 0, 14]
-        menus = wait_for_all_elements_to_be_present(parent_categ_elem, (By.XPATH, ".//li[contains(@class,'item-header')]/following-sibling::li[not(contains(@class, 'item-header'))]//a"))
-        subs = []
-        for i in range(len(each_sub_categ_items_count)):
-            sub = menus[
-                  sum([_ for _ in each_sub_categ_items_count[:i]]):sum([_ for _ in each_sub_categ_items_count[:i]]) +
-                                                                   each_sub_categ_items_count[i]]
-            subs.append([item.get_attribute('href') for item in sub])
+
+    def _sexy_function(self, parent_categ_elem):
         result = []
-        for sub, max in zip(subs, levels[1:]):
-            result.extend(sub[:max])
+
+        all_lis = wait_for_all_elements_to_be_present(
+            parent_categ_elem, (By.XPATH, ".//li[contains(@class, 'menu-item')]")
+        )
+
+        current_header = None
+        current_items = []
+
+        for li in all_lis:
+            if "item-header" in li.get_attribute("class"):
+                if current_header:
+                    result.append({
+                        "header": get_text_by_javascript(self._driver, current_header).strip(),
+                        "count": len(current_items),
+                        "menus": current_items
+                    })
+                current_header = li
+                current_items = []
+            else:
+                current_items.append(wait_for_element_to_be_present(li, (By.TAG_NAME, "a")).get_attribute('href'))
+
+        if current_header:
+            result.append({
+                "categ": get_text_by_javascript(self._driver, current_header).strip(),
+                "count": len(current_items),
+                "menus": current_items
+            })
+        return result
+
+    def _getSubCategoryMenus_tunisianet(self, levels):
+
+        self.logger.info("start selecting the target categories ...")
+
+        bigs = []
+        bigs_categs = wait_for_all_elements_to_be_present(self._driver, (By.XPATH, "//ul[@class = 'menu-content top-menu']/li"))
+        for bb in bigs_categs:
+            big_categ_name = get_text_by_javascript(self._driver, wait_for_element_to_be_present(bb, (By.XPATH, "./div[@class = 'icon-drop-mobile']"))).strip().replace('  ','').replace('\n','')
+            parent_sub_categs = self._sexy_function(bb)
+
+            bigs.append({
+                "big": big_categ_name,
+                "categs": parent_sub_categs
+            })
+        target_parent_categ = bigs[levels[0]-1]
+        result = []
+        for sub, count in zip(target_parent_categ["categs"], levels[1:]):
+            result.extend(sub["menus"][:count])
+            if count > len(sub["menus"]):
+                self.logger.info("sub-category index out of range ... will take the whole list")
+
+        self.logger.info(f"{len(result)} categories selected")
         return result
 
     def getProductsFromTunisianet(self, levels, nb_product_for_each_subcategory):
         self._driver.get("https://"+self.tunisianet_website)
-        parent_categ_elem = wait_for_element_to_be_present(self._driver, (By.XPATH, f"//ul[contains(@class, 'menu-content')]/li[{levels[0]}]"))
-
-        menus = self._getSubCategoryMenus_tunisianet(levels=levels, parent_categ_elem=parent_categ_elem)
+        menus = self._getSubCategoryMenus_tunisianet(levels=levels)
         yield from self._getProductsCategory_tunisianet(menus, nb_product_for_each_subcategory)
 
     def _getProductsCategory_tunisianet(self, categs_links, nb_products):
@@ -111,35 +151,47 @@ class FromTunisianet:
         return data
 
     def _get_availability_tunisianet(self):
-        disp_div = self._driver.find_element(
-            By.ID, "product-availability-store-mobile"
-        )
-        places_avail_cols = wait_for_all_elements_to_be_present(disp_div, (By.XPATH, ".//div[contains(@class, 'stores')]"))
-        availabilities = dict()
-        places_elems = wait_for_all_elements_to_be_present(places_avail_cols[0], (By.XPATH, ".//div[contains(@class, 'store-availability')]"))
-        avail_elems = wait_for_all_elements_to_be_present(places_avail_cols[1], (By.XPATH, ".//div[contains(@class, 'store-availability')]"))
-        for place_elem, avail_elem in zip(places_elems, avail_elems):
-            place = get_text_by_javascript(self._driver, place_elem)
-            status = get_text_by_javascript(self._driver, avail_elem)
-            availabilities[place] = status
-        return availabilities
+        try:
+            disp_div = self._driver.find_element(
+                By.ID, "product-availability-store-mobile"
+            )
+            places_avail_cols = wait_for_all_elements_to_be_present(disp_div,
+                                                                    (By.XPATH, ".//div[contains(@class, 'stores')]"))
+            availabilities = dict()
+            places_elems = wait_for_all_elements_to_be_present(places_avail_cols[0], (
+            By.XPATH, ".//div[contains(@class, 'store-availability')]"))
+            avail_elems = wait_for_all_elements_to_be_present(places_avail_cols[1], (
+            By.XPATH, ".//div[contains(@class, 'store-availability')]"))
+            for place_elem, avail_elem in zip(places_elems, avail_elems):
+                place = get_text_by_javascript(self._driver, place_elem)
+                status = get_text_by_javascript(self._driver, avail_elem)
+                availabilities[place] = status
+            return availabilities
+        except:
+           self.logger.info('availability data not collected')
+           return {}
     def _get_technical_sheet_tunisianet(self):
 
-        self._driver.execute_script("arguments[0].scrollIntoView(true);",
-                                    wait_for_element_to_be_present(self._driver, (By.XPATH, "//a[@aria-controls = 'product-details']")))
-        wait_for_element_to_be_clickable(self._driver, (By.XPATH, "//a[@aria-controls = 'product-details']"))
-        sleep(2)
-        table = wait_for_all_elements_to_be_present( self._driver, (By.CLASS_NAME, "product-features"))[0]
-        self._driver.execute_script("arguments[0].scrollIntoView(true);", table)
-        keys = wait_for_all_elements_to_be_present(table, (By.TAG_NAME, "dt"))
-        values = wait_for_all_elements_to_be_present(table, (By.TAG_NAME, "dd"))
-        technical_data = dict()
-        for key, value in zip(keys, values):
-            technical_data[key.text] = value.text
+        try:
+            self._driver.execute_script("arguments[0].scrollIntoView(true);",
+                                        wait_for_element_to_be_present(self._driver, (
+                                        By.XPATH, "//a[@aria-controls = 'product-details']")))
+            wait_for_element_to_be_clickable(self._driver, (By.XPATH, "//a[@aria-controls = 'product-details']"))
+            sleep(2)
+            table = wait_for_all_elements_to_be_present(self._driver, (By.CLASS_NAME, "product-features"))[0]
+            self._driver.execute_script("arguments[0].scrollIntoView(true);", table)
+            keys = wait_for_all_elements_to_be_present(table, (By.TAG_NAME, "dt"))
+            values = wait_for_all_elements_to_be_present(table, (By.TAG_NAME, "dd"))
+            technical_data = dict()
+            for key, value in zip(keys, values):
+                technical_data[key.text] = value.text
 
-        if len(technical_data.keys()) <= 1:
-            self.logger.error(f"collected technical sheet:{len(technical_data.keys())} [tunisianet]")
-        return technical_data
+            if len(technical_data.keys()) <= 1:
+                self.logger.error(f"collected technical sheet:{len(technical_data.keys())} [tunisianet]")
+            return technical_data
+        except:
+            self.logger.info('technical sheet not collected')
+            return {}
 
 
     def _get_product_images_tunisianet(self):

@@ -2,37 +2,57 @@ from selenium.common import TimeoutException
 from selenium.webdriver.common.by import By
 
 from e_commerce_scraper.mixins.utils import wait_for_element_to_be_clickable, wait_for_all_elements_to_be_present, \
-    wait_for_element_to_be_present, wait_for_all_elements_to_be_visible
+    wait_for_element_to_be_present, wait_for_all_elements_to_be_visible, get_text_by_javascript
 
 
 class FromSpacenet:
+    spacenet_website = "spacenet.tn"
 
-    spacenet_website= "spacenet.tn"
+    def _getSubCategoryMenus_spacenet(self, levels):
+        self.logger.info("start selecting the target categories ...")
 
-    def _getSubCategoryMenus_spacenet(self, levels, parent_categ_elem):
-        each_sub_categ_items_count = [4, 2, 5, 14, 3, 11, 4, 9]
-        subs = []
-        menus = wait_for_all_elements_to_be_present(parent_categ_elem, (By.XPATH, ".//ul[@class = 'level-3']/li/a"))
-
-        for i in range(len(each_sub_categ_items_count)):
-            sub = menus[
-                  sum([_ for _ in each_sub_categ_items_count[:i]]):sum([_ for _ in each_sub_categ_items_count[:i]]) +
-                                                                   each_sub_categ_items_count[i]]
-            subs.append([item.get_attribute('href') for item in sub])
+        bigs = []
+        bigs_categs = wait_for_all_elements_to_be_present(self._driver, (By.XPATH, "//ul[@class='nav navbar-nav  menu sp_lesp level-1']/li"))
+        for bb in bigs_categs:
+            big_categ_name = get_text_by_javascript(self._driver, wait_for_element_to_be_present(bb, (By.TAG_NAME, "a"))).strip().replace('  ','').replace('\n','')
+            br = []
+            ss = wait_for_all_elements_to_be_present(bb, (By.XPATH, "./div/ul/li"))
+            for elem in ss:
+                sub_name = get_text_by_javascript(self._driver, wait_for_element_to_be_present(elem, (By.XPATH, ".//a"))).strip().replace('  ','').replace('\n','')
+                categ_subs = []
+                try:
+                    for mm in wait_for_all_elements_to_be_present(elem, (By.XPATH, ".//li/a"), 1):
+                        categ_subs.append(mm.get_attribute('href'))
+                except:
+                    pass
+                br.append({
+                    "categ": sub_name,
+                    "count": len(categ_subs),
+                    "menus": categ_subs
+                })
+            bigs.append({
+                "big": big_categ_name,
+                "categs": br
+            })
+        bigs = list({item["big"].replace(' ',''): item for item in bigs}.values())
+        target_parent_categ = bigs[levels[0]-1]
         result = []
-        for sub, max in zip(subs, levels[1:]):
-            result.extend(sub[:max])
+        for sub, count in zip(target_parent_categ["categs"], levels[1:]):
+            result.extend(sub["menus"][:count])
+            if count > len(sub["menus"]):
+                self.logger.info("sub-category index out of range ... will take the whole list")
+
+
+        self.logger.info(f"{len(result)} categories selected")
         return result
 
     def getProductsFromSpacenet(self, levels, nb_product_for_each_subcategory):
-        self._driver.get("https://"+self.spacenet_website)
+        self._driver.get("https://" + self.spacenet_website)
         wait_for_element_to_be_clickable(self._driver, (
             By.XPATH, "//div[contains(@class, 'v-megameu-main')]"
         ))
 
-        parent_categ_elem = self._driver.find_element(By.XPATH, f"//ul[contains(@class, 'sp_lesp')]/li[{levels[0]}]")
-        #wait_for_element_to_be_clickable(self._driver, parent_categ_elem).click()
-        menus = self._getSubCategoryMenus_spacenet(levels, parent_categ_elem)
+        menus = self._getSubCategoryMenus_spacenet(levels)
         yield from self._getProductsCategory_spacenet(menus, nb_product_for_each_subcategory)
 
     def _getProductsCategory_spacenet(self, categs_links, nb_products):
@@ -64,8 +84,8 @@ class FromSpacenet:
     def _getSingleProduct_spacenet(self, prod_link):
         self._driver.get(prod_link)
         ''' reference is used is data cleaning phase to removed duplicates  '''
-        reference = wait_for_element_to_be_present(self._driver, (By.XPATH, "//div[@class = 'product-reference']/span")).text
-
+        reference = wait_for_element_to_be_present(self._driver,
+                                                   (By.XPATH, "//div[@class = 'product-reference']/span")).text
 
         name = wait_for_element_to_be_present(self._driver, (By.XPATH, "//h1[@class='h1']")).text
         try:
@@ -84,7 +104,8 @@ class FromSpacenet:
             By.XPATH, "//div[@class = 'product-des']/p"
         )).text
 
-        category = wait_for_element_to_be_present(self._driver, (By.XPATH, "//div[@class = 'breadcrumb-no-images']//ol/li[position()=last()-1]")).text
+        category = wait_for_element_to_be_present(self._driver, (
+        By.XPATH, "//div[@class = 'breadcrumb-no-images']//ol/li[position()=last()-1]")).text
 
         data = {
             "website": self.spacenet_website,
@@ -102,54 +123,70 @@ class FromSpacenet:
         }
         return data
 
-
     def _get_manufacturer_spacenet(self):
         try:
-            return wait_for_element_to_be_present(self._driver, (By.XPATH, "//div[@class = 'product-manufacturer']//img")).get_attribute('alt')
+            return wait_for_element_to_be_present(self._driver, (
+            By.XPATH, "//div[@class = 'product-manufacturer']//img")).get_attribute('alt')
         except:
             return ""
+
     def _get_availability_spacenet(self):
-        disp_div = wait_for_element_to_be_present(self._driver, (
-            By.XPATH, "//div[@class = 'magasin-table']"
-        ))
-        places = wait_for_all_elements_to_be_present(disp_div, (By.XPATH, ".//div[contains(@class, 'left-side')]"))
-        values = wait_for_all_elements_to_be_present(disp_div, (By.XPATH, ".//div[contains(@class, 'right-side')]"))
+       try:
+            disp_div = wait_for_element_to_be_present(self._driver, (
+                By.XPATH, "//div[@class = 'magasin-table']"
+            ))
+            places = wait_for_all_elements_to_be_present(disp_div, (By.XPATH, ".//div[contains(@class, 'left-side')]"))
+            values = wait_for_all_elements_to_be_present(disp_div, (By.XPATH, ".//div[contains(@class, 'right-side')]"))
 
-        availabilities = dict()
-        for key, value in zip(places, values):
-            place = key.text
-            status = value.text
+            availabilities = dict()
+            for key, value in zip(places, values):
+                place = key.text
+                status = value.text
 
-            availabilities[place] = status
-        return availabilities
+                availabilities[place] = status
+            return availabilities
+       except:
+           self.logger.info('availability data not collected')
+           return {}
+
     def _get_technical_sheet_spacenet(self):
-        wait_for_element_to_be_clickable(self._driver, (By.XPATH, "//a[text() = 'Détails du produit']"))
-        table = wait_for_element_to_be_present(
-            self._driver, (By.XPATH, "//dl[@class = 'data-sheet']")
-        )
-        self._driver.execute_script("arguments[0].scrollIntoView(true);", table)
-        keys = wait_for_all_elements_to_be_visible(self._driver, (By.XPATH, "//dl[@class = 'data-sheet']/dt"))
-        values = wait_for_all_elements_to_be_visible(self._driver, (By.XPATH, "//dl[@class = 'data-sheet']/dd"))
-        technical_data = dict()
-        for key, value in zip(keys, values):
-            technical_data[key.text] = value.text
+        try:
+            wait_for_element_to_be_clickable(self._driver, (By.XPATH, "//a[text() = 'Détails du produit']"))
+            table = wait_for_element_to_be_present(
+                self._driver, (By.XPATH, "//dl[@class = 'data-sheet']")
+            )
+            self._driver.execute_script("arguments[0].scrollIntoView(true);", table)
+            keys = wait_for_all_elements_to_be_visible(self._driver, (By.XPATH, "//dl[@class = 'data-sheet']/dt"))
+            values = wait_for_all_elements_to_be_visible(self._driver, (By.XPATH, "//dl[@class = 'data-sheet']/dd"))
+            technical_data = dict()
+            for key, value in zip(keys, values):
+                technical_data[key.text] = value.text
 
-        if len(technical_data.keys()) <= 1:
-            self.logger.error(f"collected technical sheet:{len(technical_data.keys())} [spacenet]")
-        return technical_data
+            return technical_data
+        except:
+            self.logger.info('technical sheet not collected')
+            return {}
 
     def _jump_to_next_page_spacenet(self):
         try:
-            next_btn = wait_for_element_to_be_present(self._driver, (By.XPATH, "//nav[@class = 'pagination']//li[position()=last()]/a"))
+            next_btn = wait_for_element_to_be_present(self._driver, (
+            By.XPATH, "//nav[@class = 'pagination']//li[position()=last()]/a"))
             self._driver.get(next_btn.get_attribute('href'))
             return True
         except:
-            self.logger.info(f"failed to jump to next page")
+            self.logger.info("failed to jump to next page")
             return False
 
     def _get_product_images_spacenet(self):
         try:
-            images_elems = wait_for_all_elements_to_be_present(self._driver, (By.XPATH, "//div[contains(@class, 'js-qv-product-images')]//img"), 3)
+            images_elems = wait_for_all_elements_to_be_present(self._driver, (
+            By.XPATH, "//div[contains(@class, 'js-qv-product-images')]//img"), 3)
             return [img.get_attribute('src') for img in images_elems]
         except:
-            return [wait_for_element_to_be_present(self._driver, (By.CLASS_NAME, "js-qv-product-cover")).get_attribute('src')]
+            try:
+                return [
+                    wait_for_element_to_be_present(self._driver, (By.CLASS_NAME, "js-qv-product-cover")).get_attribute(
+                        'src')]
+            except:
+                self.logger("product images not collected")
+                return []

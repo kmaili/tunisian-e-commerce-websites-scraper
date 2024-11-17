@@ -10,6 +10,7 @@ class FromMytek:
     mytek_website= "mytek.tn"
 
     def _getSubCategoryMenus_mytek(self, levels):
+
         menus = []
         principal = levels[0]
         for level in levels[1:]:
@@ -101,33 +102,42 @@ class FromMytek:
         return data
 
     def _get_availability_mytek(self):
-        disp_div = wait_for_element_to_be_present(self._driver, (
-            By.XPATH, "//table[@class = 'tab_retrait_mag']"
-        ))
-        places_divs = wait_for_all_elements_to_be_present(disp_div, (By.TAG_NAME, "tr"))
-        availabilities = dict()
-        for place_div in places_divs:
-            place_status = wait_for_all_elements_to_be_present(place_div, (By.TAG_NAME, "td"))
-            place = place_status[0]
-            status = place_status[1]
+        try:
+            disp_div = wait_for_element_to_be_present(self._driver, (
+                By.XPATH, "//table[@class = 'tab_retrait_mag']"
+            ))
+            places_divs = wait_for_all_elements_to_be_present(disp_div, (By.TAG_NAME, "tr"))
+            availabilities = dict()
+            for place_div in places_divs:
+                place_status = wait_for_all_elements_to_be_present(place_div, (By.TAG_NAME, "td"))
+                place = place_status[0]
+                status = place_status[1]
 
-            availabilities[place.text] = status.text
-        return availabilities
+                availabilities[place.text] = status.text
+            return availabilities
+        except:
+           self.logger.info('availability data not collected')
+           return {}
+
     def _get_technical_sheet_mytek(self):
-        wait_for_element_to_be_clickable(self._driver, (By.XPATH, "//a[text()='FICHE TECHNIQUE']"))
-        sleep(2)
-        table = wait_for_element_to_be_present(self._driver, (By.ID, "product-attribute-specs-table"))
-        self._driver.execute_script("arguments[0].scrollIntoView(true);", table)
-        specs = wait_for_all_elements_to_be_present(table, (By.TAG_NAME, "tr"))
-        technical_data = dict()
-        for spec in specs:
-            key = wait_for_element_to_be_present(spec, (By.TAG_NAME, "th")).text
-            value = wait_for_element_to_be_present(spec, (By.TAG_NAME, "td")).text
-            technical_data[key] = value
-        if len(technical_data.keys()) <= 1:
-            self.logger.error(f"collected technical sheet:{len(technical_data.keys())} [mytek]")
+        try:
+            wait_for_element_to_be_clickable(self._driver, (By.XPATH, "//a[text()='FICHE TECHNIQUE']"))
+            sleep(2)
+            table = wait_for_element_to_be_present(self._driver, (By.ID, "product-attribute-specs-table"))
+            self._driver.execute_script("arguments[0].scrollIntoView(true);", table)
+            specs = wait_for_all_elements_to_be_present(table, (By.TAG_NAME, "tr"))
+            technical_data = dict()
+            for spec in specs:
+                key = wait_for_element_to_be_present(spec, (By.TAG_NAME, "th")).text
+                value = wait_for_element_to_be_present(spec, (By.TAG_NAME, "td")).text
+                technical_data[key] = value
+            if len(technical_data.keys()) <= 1:
+                self.logger.error(f"collected technical sheet:{len(technical_data.keys())} [mytek]")
 
-        return technical_data
+            return technical_data
+        except:
+            self.logger.info('technical sheet not collected')
+            return {}
 
     def _jump_to_next_page_mytek(self):
         try:

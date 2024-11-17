@@ -28,5 +28,5 @@ logging_folder = os.path.join(WORKING_DIR, "logs", "ecommerce.log")
 os.makedirs(os.path.join(WORKING_DIR, "logs"), exist_ok=True)
 # : os.makedirs(os.path.join(WORKING_DIR, 'logs'))
 logging_level = logging.INFO
-logging_format = "%(asctime)s:[%(levelname)s]: line number: [%(lineno)d]: %(message)s"
+logging_format = "%(asctime)s:[%(levelname)s]: [%(lineno)d]: %(message)s"
 verbose = True

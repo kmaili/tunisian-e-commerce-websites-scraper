@@ -10,37 +10,60 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as EC
 
 from e_commerce_scraper.mixins.utils import wait_for_element_to_be_clickable, wait_for_all_elements_to_be_present, \
-    wait_for_element_to_be_present, wait_for_all_elements_to_be_visible
+    wait_for_element_to_be_present, wait_for_all_elements_to_be_visible, get_text_by_javascript
 
 
 class FromZoom:
 
     zoom_website= "zoom.com.tn"
 
-    def _getSubCategoryMenus_zoom(self, levels, parent_categ_elem):
-        each_sub_categ_items_count = [8, 6, 4, 5, 3, 4, 11, 3, 7]
-        menus = wait_for_all_elements_to_be_present(parent_categ_elem, (By.XPATH, ".//ul[@class='ets_mm_categories']/li/a"))
-        subs = []
-        for i in range(len(each_sub_categ_items_count)):
-            sub = menus[
-                  sum([_ for _ in each_sub_categ_items_count[:i]]):sum([_ for _ in each_sub_categ_items_count[:i]]) +
-                                                                   each_sub_categ_items_count[i]]
-            subs.append([item.get_attribute('href') for item in sub])
+    def _getSubCategoryMenus_zoom(self, levels):
+
+        self.logger.info("start selecting the target categories ...")
+
+        bigs = []
+        bigs_categs = wait_for_all_elements_to_be_present(self._driver, (By.XPATH, "//ul[contains(@class, 'mm_columns_ul')]/li"))
+        for bb in bigs_categs:
+            big_categ_name = get_text_by_javascript(self._driver, wait_for_element_to_be_present(bb, (By.XPATH, "./div/span"))).strip().replace('  ','').replace('\n','')
+            br = []
+            ss = wait_for_all_elements_to_be_present(bb, (By.XPATH, ".//div[@class = 'ets_mm_block_content']"))
+            for elem in ss:
+                sub_name = get_text_by_javascript(self._driver, wait_for_element_to_be_present(elem, (By.XPATH, "..//span[@class='h4']"))).strip().replace('  ','').replace('\n','')
+                categ_subs = []
+                try:
+                    for mm in wait_for_all_elements_to_be_present(elem, (By.XPATH, "..//div[@class = 'ets_mm_block_content']//li/a"), 1):
+                        categ_subs.append(mm.get_attribute('href'))
+                except:
+                    pass
+                br.append({
+                    "categ": sub_name,
+                    "count": len(categ_subs),
+                    "menus": categ_subs
+                })
+            bigs.append({
+                "big": big_categ_name,
+                "categs": br
+            })
+        target_parent_categ = bigs[levels[0]-1]
         result = []
-        for sub, max in zip(subs, levels[1:]):
-            result.extend(sub[:max])
+        for sub, count in zip(target_parent_categ["categs"], levels[1:]):
+            result.extend(sub["menus"][:count])
+            if count > len(sub["menus"]):
+                self.logger.info("sub-category index out of range ... will take the whole list")
+
+        self.logger.info(f"{len(result)} categories selected")
         return result
 
+
     def getProductsFromZoom(self, levels, nb_product_for_each_subcategory):
-        self._driver.get("https://"+self.zoom_website)
+        #self._driver.get("https://"+self.zoom_website)
         wait_for_element_to_be_clickable(self._driver, (
             By.XPATH, "//ul[contains(@class, 'mm_menus_ul')]/li[2]"
         ))
         parent_elem_locator = By.XPATH, f"//ul[contains(@class, 'mm_columns_ul_tab')]/li[{levels[0]}]"
-        parent_categ_elem = wait_for_element_to_be_present(self._driver, parent_elem_locator)
         wait_for_element_to_be_clickable(self._driver, parent_elem_locator)
 
-        menus = self._getSubCategoryMenus_zoom(levels, parent_categ_elem)
+        menus = self._getSubCategoryMenus_zoom(levels)
         yield from self._getProductsCategory_zoom(menus, nb_product_for_each_subcategory)
 
     def _getProductsCategory_zoom(self, categs_links, nb_products):
